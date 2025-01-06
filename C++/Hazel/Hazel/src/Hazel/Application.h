@@ -9,7 +9,11 @@ namespace Hazel {
 		virtual ~Application();
 
 		void Run();
+
 	};
 
+	//To be defined in client
+
+	Application* CreateApplication();
 }
 
