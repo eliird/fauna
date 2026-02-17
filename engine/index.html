@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Engine Test</title>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <script type="module">
+        import init, { init as engineInit } from './pkg/engine.js';
+        await init();
+        engineInit();
+    </script>
+</body>
+</html>
