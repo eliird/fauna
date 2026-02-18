@@ -1,5 +1,53 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use std::rc::Rc;
+use std::cell::RefCell;
+
+
+struct State {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    surface: wgpu::Surface<'static>,
+    pipeline: wgpu::RenderPipeline,
+}
+
+
+impl State{
+    fn render(&self){
+        let output = self.surface.get_current_texture().unwrap();
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor{
+                label: Some("Render"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment{
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations{
+                        load: wgpu::LoadOp::Clear(wgpu::Color{
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                ..Default::default()
+            });
+
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.draw(0..3, 0..1);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        output.present();
+    }
+}
+
 
 #[wasm_bindgen]
 pub async fn init() {
@@ -82,35 +130,29 @@ pub async fn init() {
     });
 
     // Render a frame — clear to dark teal
-    let output = surface.get_current_texture().unwrap();
-    let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+    let state = Rc::new(State{
+        device,
+        queue,
+        surface,
+        pipeline,
+    });
 
-    {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-            })],
-            depth_stencil_attachment: None,
-            ..Default::default()
-        });
+    let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    let state_clone = state.clone();
 
-        render_pass.set_pipeline(&pipeline);
-        render_pass.draw(0..3, 0..1);
-    }
 
-    queue.submit(std::iter::once(encoder.finish()));
-    output.present();
+    *g.borrow_mut() = Some(Closure::new(move || {
+        state_clone.render();
+
+        let window = web_sys::window().unwrap();
+        window.request_animation_frame(
+            f.borrow().as_ref().unwrap().as_ref().unchecked_ref()
+        ).unwrap();
+    }));
+
+    let window = web_sys::window().unwrap();
+    window.request_animation_frame(
+        g.borrow().as_ref().unwrap().as_ref().unchecked_ref()
+    ).unwrap();
 }
