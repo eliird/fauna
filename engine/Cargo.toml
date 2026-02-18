@@ -12,3 +12,5 @@ wasm-bindgen-futures = "0.4"
 wgpu = { version = "28", features = ["webgl"] }
 web-sys = { version = "0.3", features = ["Window", "Document", "HtmlCanvasElement"] }
 console_error_panic_hook = "0.1"
+glam = "0.32.0"
+bytemuck = {version="1.25", features = ["derive"]}

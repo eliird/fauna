@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wgpu::util::DeviceExt;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -9,11 +10,25 @@ struct State {
     queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
     pipeline: wgpu::RenderPipeline,
+    frame: RefCell<u64>,
+    vertex_buffer: wgpu::Buffer,
+    num_vertices: u32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
 }
 
 
 impl State{
     fn render(&self){
+
+        let mut frame = self.frame.borrow_mut();
+        *frame += 1;
+        let t = (*frame as f64) / 60.0;
         let output = self.surface.get_current_texture().unwrap();
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
@@ -40,7 +55,8 @@ impl State{
             });
 
             render_pass.set_pipeline(&self.pipeline);
-            render_pass.draw(0..3, 0..1);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.draw(0..self.num_vertices, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -106,7 +122,22 @@ pub async fn init() {
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[],
+            buffers: &[wgpu::VertexBufferLayout{
+                array_stride: std::mem::size_of::<Vertex>() as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &[
+                    wgpu::VertexAttribute{
+                        offset: 0,
+                        shader_location: 0,
+                        format: wgpu::VertexFormat::Float32x3,
+                    },
+                    wgpu::VertexAttribute{
+                        offset: std::mem::size_of::<[f32; 3]>() as u64,
+                        shader_location: 1,
+                        format: wgpu::VertexFormat::Float32x3,
+                    }
+                ]
+            }],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -120,7 +151,7 @@ pub async fn init() {
             compilation_options: Default::default(),
         }),
         primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
+            topology: wgpu::PrimitiveTopology::LineList,
             ..Default::default()
         },
         depth_stencil: None,
@@ -129,12 +160,32 @@ pub async fn init() {
         cache: None,
     });
 
+    let axes: [Vertex; 6] = [
+        // X axis — red
+        Vertex { position: [0.0, 0.0, 0.0], color: [1.0, 0.0, 0.0] },
+        Vertex { position: [1.0, 0.0, 0.0], color: [1.0, 0.0, 0.0] },
+        // Y axis — green
+        Vertex { position: [0.0, 0.0, 0.0], color: [0.0, 1.0, 0.0] },
+        Vertex { position: [0.0, 1.0, 0.0], color: [0.0, 1.0, 0.0] },
+        // Z axis — blue
+        Vertex { position: [0.0, 0.0, 0.0], color: [0.0, 0.0, 1.0] },
+        Vertex { position: [0.0, 0.0, 1.0], color: [0.0, 0.0, 1.0] },
+    ];
+
+    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
+        label: Some("Vertex buffer"),
+        contents: bytemuck::cast_slice(&axes),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
     // Render a frame — clear to dark teal
     let state = Rc::new(State{
         device,
         queue,
         surface,
         pipeline,
+        frame: RefCell::new(0),
+        vertex_buffer,
+        num_vertices: axes.len() as u32,
     });
 
     let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
@@ -155,4 +206,7 @@ pub async fn init() {
     window.request_animation_frame(
         g.borrow().as_ref().unwrap().as_ref().unchecked_ref()
     ).unwrap();
+
+
+
 }

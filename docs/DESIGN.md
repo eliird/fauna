@@ -6,11 +6,11 @@ An in-browser game platform where creators build and deploy games, and players d
 
 ## Core Components
 
-### 1. Game Engine (Rust → WASM → WebGL2)
+### 1. Game Engine (Rust → WASM → wgpu)
 
 - Written in Rust, compiled to WASM via `wasm-bindgen` / `wasm-pack`
-- Rendering via WebGL2 (WebGPU when browser support matures)
-- 2D-first, with architecture that supports 3D later
+- Rendering via `wgpu` (abstracts over WebGPU and WebGL2 backends)
+- Everything is 3D — 2D is a special case with a locked orthographic camera and z=0. One renderer, one physics system, one set of tools. Creators pick "2D mode" or "3D mode" which just constrains the camera and defaults.
 - Engine handles: rendering, physics, audio, input, asset loading
 - Fullscreen support via the browser Fullscreen API
 
@@ -79,7 +79,7 @@ Creator's Python Script
 ## Phased Approach
 
 **Phase 1 — Foundation**
-- 2D engine in Rust/WASM with WebGL2 rendering
+- 3D engine in Rust/WASM with wgpu (2D = locked camera mode)
 - Scripting interface + RustPython backend
 - Basic web platform: auth, game upload, game hosting/playing
 
@@ -89,7 +89,6 @@ Creator's Python Script
 - Debugging and preview tools
 
 **Phase 3 — Platform Growth**
-- 3D rendering support
 - Marketplace for assets and resources
 - Social features, ratings, collections
 
